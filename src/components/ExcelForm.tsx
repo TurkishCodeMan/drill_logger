@@ -2,7 +2,7 @@ import React, { useCallback, useState, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ExcelService } from '../services/excel.service';
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -176,12 +176,7 @@ export const ExcelForm: React.FC = () => {
     return Array.from(groupMap.values());
   }, [excelData?.groups]);
 
-  // Dropdown alanlarını kontrol eden fonksiyon artık Excel'deki veri doğrulama kurallarını kullanıyor
-  const isDropdownField = (columnName: string): boolean => {
-    return excelService.getColumnType(columnName) === 'select';
-  };
-
-  const renderFormField = (column: string, groupIndex: number, columnIndex: number) => {
+  const renderFormField = (column: string) => {
     const columnType = excelService.getColumnType(column);
     const dropdownValues = excelService.getDropdownValues(column);
     
@@ -311,7 +306,7 @@ export const ExcelForm: React.FC = () => {
                             <Label htmlFor={column} className="text-base">
                               {column}
                             </Label>
-                            {renderFormField(column, groupIndex, columnIndex)}
+                            {renderFormField(column)}
                           </div>
                         ))}
                       </div>

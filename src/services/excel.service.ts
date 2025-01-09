@@ -77,7 +77,8 @@ export class ExcelService {
   /**
    * GEOLOGY sayfasındaki hücrelerin dataValidation özelliğini
    * tarayarak type === 'list' olanları (dropdown) tespit eder,
-   * bu kolonları 'select' olarak işaretler ve validationMap'e ekler.
+   * formülü parse edip this.dropdownData'ya ekler.
+   * Her kolon için columnTypes map'ine 'select' veya 'text' atar.
    */
   private async detectDropDownCells(): Promise<void> {
     if (!this.worksheet) return;
@@ -103,13 +104,19 @@ export class ExcelService {
           const columnName = columnNames.get(colNumber);
           if (!columnName) return;
 
+          // Hücrenin dataValidation ayarını al
           const validation = cell.dataValidation;
-          // Konsolda görebilmek için log
           console.log(`Checking cell [Row: ${rowNumber}, Col: ${colNumber}] ${columnName}:`, validation);
 
-          if (validation) {
-            // LIST tipinde data validation varsa → dropdown demektir
+          // YENİ: Data validation yok veya tip 'list' değilse "text"
+          if (!validation) {
+            // Data validation yok → text
+            if (!this.columnTypes.has(columnName)) {
+              this.columnTypes.set(columnName, 'text');
+            }
+          } else {
             if (validation.type === 'list') {
+              // LIST tipinde data validation varsa → dropdown demektir
               console.log(`Found dropdown at [${rowNumber}, ${colNumber}] ${columnName}`);
               console.log('Validation:', validation);
               
@@ -130,10 +137,18 @@ export class ExcelService {
                   } 
                   // Virgülle ayrılmış doğrudan değerler (ör. =Elma,Armut,Muz)
                   else if (formula.includes(',')) {
-                    const values = formula.split(',').map(v => v.trim());
+                    const values = formula
+                      .replace(/^=/, '')
+                      .split(',')
+                      .map(v => v.trim());
                     this.dropdownData.set(columnName, values);
                   }
                 }
+              }
+            } else {
+              // YENİ: Data validation var ama type 'list' değil → text
+              if (!this.columnTypes.has(columnName)) {
+                this.columnTypes.set(columnName, 'text');
               }
             }
           }
