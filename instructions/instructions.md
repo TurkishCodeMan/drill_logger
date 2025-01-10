@@ -181,3 +181,44 @@ We will be using react,shadcn,tailwind,lucid icon
 
 
 # Current file structure
+excel-tablet-app
+    ├── README.md
+    ├── dist
+    │   ├── assets
+    │   ├── index.html
+    │   └── vite.svg
+    ├── eslint.config.js
+    ├── index.html
+    ├── instructions
+    │   └── instructions.md
+    ├── package-lock.json
+    ├── package.json
+    ├── postcss.config.js
+    ├── problem.md
+    ├── public
+    │   └── vite.svg
+    ├── server
+    │   ├── index.ts
+    │   └── tsconfig.json
+    ├── src
+    │   ├── App.css
+    │   ├── App.tsx
+    │   ├── assets
+    │   ├── components
+    │   ├── index.css
+    │   ├── lib
+    │   ├── main.tsx
+    │   ├── services
+    │   ├── types
+    │   └── vite-env.d.ts
+    ├── tailwind.config.js
+    ├── tsconfig.app.json
+    ├── tsconfig.json
+    ├── tsconfig.node.json
+    ├── tsconfig.node.tsbuildinfo
+    ├── tsconfig.tsbuildinfo
+    ├── undefined
+    ├── uploads
+    ├── vite.config.d.ts
+    ├── vite.config.js
+    └── vite.config.ts

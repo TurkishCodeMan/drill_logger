@@ -27,11 +27,30 @@ export class ExcelService {
    */
   async loadExcelFile(file: File): Promise<ExcelUploadResponse> {
     try {
+      // 1. Dosya boyutu kontrolü
+      if (file.size > 20 * 1024 * 1024) {
+        return {
+          success: false,
+          message: 'Dosya boyutu çok büyük (max: 20MB)',
+          error: 'File size too large'
+        };
+      }
+
+      // 2. Dosyayı chunk'lar halinde oku
+      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
+        reader.onerror = (e) => reject(e);
+        reader.readAsArrayBuffer(file);
+      });
+
+      console.log('File loaded into memory, processing...');
+
+      // 3. Workbook'u yükle
       this.workbook = new ExcelJS.Workbook();
-      const arrayBuffer = await file.arrayBuffer();
       await this.workbook.xlsx.load(arrayBuffer);
 
-      // 1. GEOLOGY sayfasını bul
+      // 4. GEOLOGY sayfasını bul
       const worksheet = this.workbook.getWorksheet(DEFAULT_CONFIG.sheetName);
       if (!worksheet) {
         return {
@@ -41,19 +60,36 @@ export class ExcelService {
         };
       }
 
+      console.log('GEOLOGY sheet found, analyzing...');
+
       this.worksheet = worksheet;
       this.currentFile = file;
 
-      // 2. Dropdown hücrelerini (data validation: list) tespit et
+      // 5. Performans için önce metadata analizi yap
+      const rowCount = worksheet.rowCount;
+      const colCount = worksheet.columnCount;
+
+      if (rowCount > 10000 || colCount > 100) {
+        return {
+          success: false,
+          message: 'Dosya çok büyük (max: 10000 satır, 100 sütun)',
+          error: 'File too large'
+        };
+      }
+
+      console.log(`Processing ${rowCount} rows and ${colCount} columns...`);
+
+      // 6. Dropdown hücrelerini tespit et
       await this.detectDropDownCells();
       
-      // 3. DATA sayfasından dropdown verilerini al
+      // 7. DATA sayfasından dropdown verilerini al
       await this.extractDropdownData();
       
-      // 4. Grupları (ana başlık) ve kolonları çözümle
+      // 8. Grupları ve satırları çözümle
       const groups = await this.extractGroups();
-      // 5. Veri satırlarını çözümle
       const rows = await this.extractRows(groups);
+
+      console.log('File processing completed successfully');
 
       return {
         success: true,

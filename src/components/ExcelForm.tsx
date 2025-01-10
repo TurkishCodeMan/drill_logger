@@ -18,12 +18,25 @@ export const ExcelForm: React.FC = () => {
   const [currentRowIndex, setCurrentRowIndex] = useState<number>(0);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     try {
       const file = acceptedFiles[0];
       if (!file) return;
+
+      // Dosya boyutu kontrolü (20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        setError('Dosya boyutu 20MB\'dan küçük olmalıdır');
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      // Yükleme işlemi başladı bildirimi
+      toast.info('Excel dosyası yükleniyor...');
 
       const result = await excelService.loadExcelFile(file);
       
@@ -38,13 +51,19 @@ export const ExcelForm: React.FC = () => {
             setExpandedGroups({ [result.data.groups[0].name]: true });
           }
         }
+        toast.success('Excel dosyası başarıyla yüklendi');
       } else {
         setError(result.error || 'Bilinmeyen bir hata oluştu');
         setExcelData(null);
+        toast.error(result.error || 'Dosya yüklenirken hata oluştu');
       }
     } catch (error) {
+      console.error('Dosya yükleme hatası:', error);
       setError('Dosya yüklenirken hata oluştu');
+      toast.error('Dosya yüklenirken beklenmeyen bir hata oluştu');
       setExcelData(null);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -53,7 +72,9 @@ export const ExcelForm: React.FC = () => {
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls']
-    }
+    },
+    maxSize: 20 * 1024 * 1024, // 20MB
+    multiple: false
   });
 
   const handlePreviousRow = () => {
@@ -330,18 +351,29 @@ export const ExcelForm: React.FC = () => {
               <h2 className="text-2xl font-bold mb-4">Excel Dosyası Yükle</h2>
               <p className="text-gray-600 mb-4">
                 Lütfen GEOLOGY sayfası içeren bir Excel dosyası yükleyin.
+                <br />
+                <span className="text-sm text-muted-foreground">
+                  (Maksimum dosya boyutu: 20MB)
+                </span>
               </p>
             </div>
 
             <div
               {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors relative
                 ${isDragActive ? 'border-primary bg-primary/10' : 'border-gray-300 hover:border-primary'}`}
             >
               <input {...getInputProps()} />
               <div className="space-y-2">
                 <div className="text-4xl mb-4">📊</div>
-                {isDragActive ? (
+                {isLoading ? (
+                  <div className="space-y-2">
+                    <div className="animate-pulse">Dosya yükleniyor...</div>
+                    <div className="text-sm text-muted-foreground">
+                      Lütfen bekleyin, bu işlem biraz zaman alabilir
+                    </div>
+                  </div>
+                ) : isDragActive ? (
                   <p className="text-primary">Dosyayı buraya bırakın...</p>
                 ) : (
                   <>
