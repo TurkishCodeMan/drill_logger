@@ -75,7 +75,8 @@ export interface ExcelConfig {
 export interface ExcelData {
   groups: ExcelGroup[];
   rows: Record<string, any>[];
-  dropdownFields?: string[];
+  dropdownFields: string[];
+  collarData: Record<string, any> | null;
 }
 
 export interface ExcelUploadResponse {

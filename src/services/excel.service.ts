@@ -8,6 +8,13 @@ const DEFAULT_CONFIG: ExcelConfig = {
   dataStartRow: 5
 };
 
+const COLLAR_CONFIG: ExcelConfig = {
+  sheetName: 'COLLAR',
+  groupRow: 1,
+  columnRow: 1,
+  dataStartRow: 2
+};
+
 export interface DropdownData {
   columnName: string;
   values: string[];
@@ -16,6 +23,7 @@ export interface DropdownData {
 export class ExcelService {
   private workbook: ExcelJS.Workbook | null = null;
   private worksheet: ExcelJS.Worksheet | null = null;
+  private collarWorksheet: ExcelJS.Worksheet | null = null;
   private currentFile: File | null = null;
   private dropdownData: Map<string, string[]> = new Map();
   private columnTypes: Map<string, CellType> = new Map();
@@ -50,8 +58,10 @@ export class ExcelService {
       this.workbook = new ExcelJS.Workbook();
       await this.workbook.xlsx.load(arrayBuffer);
 
-      // 4. GEOLOGY sayfasını bul
+      // 4. GEOLOGY ve COLLAR sayfalarını bul
       const worksheet = this.workbook.getWorksheet(DEFAULT_CONFIG.sheetName);
+      const collarWorksheet = this.workbook.getWorksheet(COLLAR_CONFIG.sheetName);
+      
       if (!worksheet) {
         return {
           success: false,
@@ -61,8 +71,10 @@ export class ExcelService {
       }
 
       console.log('GEOLOGY sheet found, analyzing...');
+      console.log('COLLAR sheet found:', !!collarWorksheet);
 
       this.worksheet = worksheet;
+      this.collarWorksheet = collarWorksheet as any;
       this.currentFile = file;
 
       // 5. Performans için önce metadata analizi yap
@@ -88,6 +100,9 @@ export class ExcelService {
       // 8. Grupları ve satırları çözümle
       const groups = await this.extractGroups();
       const rows = await this.extractRows(groups);
+      
+      // 9. COLLAR verilerini çözümle
+      const collarData = collarWorksheet ? await this.extractCollarData() : null;
 
       console.log('File processing completed successfully');
 
@@ -97,7 +112,8 @@ export class ExcelService {
         data: {
           groups,
           rows,
-          dropdownFields: Array.from(this.dropdownData.keys())
+          dropdownFields: Array.from(this.dropdownData.keys()),
+          collarData
         }
       };
     } catch (error) {
@@ -300,12 +316,27 @@ export class ExcelService {
     let currentGroup: ExcelGroup | null = null;
     let columnIndex = 1;
 
+    // E1 ve E2 için özel işlem
+    const worksheet = this.worksheet;
+    const e1Value = worksheet.getCell('E1').value?.toString() || 'Başlık';
+    const e2Value = worksheet.getCell('E2').value?.toString() || '';
+
+    // INFO grubunu başlangıçta oluştur
+    const infoGroup: ExcelGroup = {
+      name: 'INFO',
+      color: 'FFFFFF',
+      columns: ['E1_HEADER', 'E2_INPUT'],
+      startColumn: 1,
+      endColumn: 2
+    };
+    groups.push(infoGroup);
+
     while (columnIndex <= columnRow.cellCount) {
       const groupCell = groupRow.getCell(columnIndex);
       const columnCell = columnRow.getCell(columnIndex);
       
-      // Yeni bir grup başlığı bulduk
-      if (groupCell.value) {
+      // Yeni bir grup başlığı bulduk ve INFO değilse
+      if (groupCell.value && groupCell.value.toString().toLowerCase() !== 'info') {
         if (currentGroup) {
           currentGroup.endColumn = columnIndex - 1;
           groups.push(currentGroup);
@@ -326,8 +357,8 @@ export class ExcelService {
         };
       }
 
-      // Grup varsa, altına kolon ekle
-      if (currentGroup && columnCell.value) {
+      // Grup varsa ve INFO değilse, altına kolon ekle
+      if (currentGroup && columnCell.value && currentGroup.name.toLowerCase() !== 'info') {
         currentGroup.columns.push(columnCell.value.toString());
       }
 
@@ -335,7 +366,7 @@ export class ExcelService {
     }
 
     // Son grup kapat
-    if (currentGroup) {
+    if (currentGroup && currentGroup.name.toLowerCase() !== 'info') {
       currentGroup.endColumn = columnIndex - 1;
       groups.push(currentGroup);
     }
@@ -352,17 +383,26 @@ export class ExcelService {
     const rows: Record<string, any>[] = [];
     let rowIndex = DEFAULT_CONFIG.dataStartRow;
 
+    // E1 ve E2 değerlerini al
+    const e1Value = this.worksheet.getCell('E1').value?.toString() || 'Başlık';
+    const e2Value = this.worksheet.getCell('E2').value?.toString() || '';
+
     while (rowIndex <= this.worksheet.rowCount) {
       const excelRow = this.worksheet.getRow(rowIndex);
-      const rowData: Record<string, any> = {};
+      const rowData: Record<string, any> = {
+        'E1_HEADER': e1Value,
+        'E2_INPUT': e2Value
+      };
 
       groups.forEach(group => {
-        for (let i = group.startColumn; i <= group.endColumn; i++) {
-          const columnName = this.worksheet!
-            .getRow(DEFAULT_CONFIG.columnRow)
-            .getCell(i).value?.toString() || '';
-          if (columnName) {
-            rowData[columnName] = excelRow.getCell(i).value;
+        if (group.name.toLowerCase() !== 'info') {
+          for (let i = group.startColumn; i <= group.endColumn; i++) {
+            const columnName = this.worksheet!
+              .getRow(DEFAULT_CONFIG.columnRow)
+              .getCell(i).value?.toString() || '';
+            if (columnName) {
+              rowData[columnName] = excelRow.getCell(i).value;
+            }
           }
         }
       });
@@ -435,5 +475,22 @@ export class ExcelService {
     }
 
     return columnIndex;
+  }
+
+  private async extractCollarData(): Promise<any> {
+    if (!this.collarWorksheet) return null;
+
+    const headerRow = this.collarWorksheet.getRow(COLLAR_CONFIG.columnRow);
+    const dataRow = this.collarWorksheet.getRow(COLLAR_CONFIG.dataStartRow);
+    const collarData: Record<string, any> = {};
+
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      const columnName = cell.value?.toString();
+      if (columnName) {
+        collarData[columnName] = dataRow.getCell(colNumber).value;
+      }
+    });
+
+    return collarData;
   }
 }
