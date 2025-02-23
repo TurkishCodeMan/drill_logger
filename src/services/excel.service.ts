@@ -137,7 +137,7 @@ export class ExcelService {
 
     console.log('Detecting dropdown cells...');
     
-    // Sütun başlıklarını al (örneğin 4. satırda kolon başlıkları)
+    // Sütun başlıklarını al
     const headerRow = this.worksheet.getRow(DEFAULT_CONFIG.columnRow);
     const columnNames = new Map<number, string>();
     
@@ -149,6 +149,32 @@ export class ExcelService {
       }
     });
 
+    // Zone, Weathering, Mjr_defect type, Rock Strength, Alteration Type, Arg Kaolinite, diğer ALTERATION alanları ve Min Zone için özel işlem
+    columnNames.forEach((columnName, __) => {
+      if (columnName.includes('Zone') || 
+          columnName === 'Weathering' || 
+          columnName === 'Mjr_defect              type' ||
+          columnName === 'Rock                      Strength' ||
+          columnName === 'Alteration               Type' ||
+          columnName === 'Arg                       Kaolinite' ||
+          columnName === 'Serisite' ||
+          columnName === 'Dickite' ||
+          columnName === 'Alunite' ||
+          columnName === 'Chlorite' ||
+          columnName === 'Epidote' ||
+          columnName === 'Carbonate' ||
+          columnName === 'Oxidation' ||
+          columnName === 'Min                    Zone' ||
+          columnName === 'sample_this') {
+        this.columnTypes.set(columnName, 'select');
+        
+        // sample_this için özel dropdown değerleri
+        if (columnName === 'sample_this') {
+          this.dropdownData.set(columnName, ['Yes', 'No']);
+        }
+      }
+    });
+
     // Data satırlarını dön
     this.worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
       if (rowNumber >= DEFAULT_CONFIG.dataStartRow) {
@@ -156,39 +182,40 @@ export class ExcelService {
           const columnName = columnNames.get(colNumber);
           if (!columnName) return;
 
-          // Hücrenin dataValidation ayarını al
-          const validation = cell.dataValidation;
-          console.log(`Checking cell [Row: ${rowNumber}, Col: ${colNumber}] ${columnName}:`, validation);
+          // Zone, Weathering, Mjr_defect type, Arg Kaolinite, diğer ALTERATION alanları ve Min Zone için özel kontrol ekle
+          if (columnName.includes('Zone') || 
+              columnName === 'Weathering' || 
+              columnName === 'Mjr_defect              type' ||
+              columnName === 'Arg                       Kaolinite' ||
+              columnName === 'Serisite' ||
+              columnName === 'Dickite' ||
+              columnName === 'Alunite' ||
+              columnName === 'Chlorite' ||
+              columnName === 'Epidote' ||
+              columnName === 'Carbonate' ||
+              columnName === 'Oxidation' ||
+              columnName === 'Min                    Zone') {
+            return;
+          }
 
-          // YENİ: Data validation yok veya tip 'list' değilse "text"
+          // Diğer hücreler için normal kontrol
+          const validation = cell.dataValidation;
           if (!validation) {
-            // Data validation yok → text
             if (!this.columnTypes.has(columnName)) {
               this.columnTypes.set(columnName, 'text');
             }
           } else {
             if (validation.type === 'list') {
-              // LIST tipinde data validation varsa → dropdown demektir
-              console.log(`Found dropdown at [${rowNumber}, ${colNumber}] ${columnName}`);
-              console.log('Validation:', validation);
-              
-              // Bu kolonu dropdown olarak işaretle
               this.columnTypes.set(columnName, 'select');
               this.validationMap.set(columnName, validation);
 
-              // formulae varsa verileri çıkarma girişiminde bulun
               if (validation.formulae && validation.formulae.length > 0) {
                 const formula = validation.formulae[0];
-                console.log(`Formula for ${columnName}:`, formula);
-
                 if (typeof formula === 'string') {
-                  // Data sayfasına referans (ör. =DATA!A2:A10)
                   if (formula.includes('DATA!')) {
                     const range = formula.replace(/^=/, '');
                     this.extractValidationValues(columnName, range);
-                  } 
-                  // Virgülle ayrılmış doğrudan değerler (ör. =Elma,Armut,Muz)
-                  else if (formula.includes(',')) {
+                  } else if (formula.includes(',')) {
                     const values = formula
                       .replace(/^=/, '')
                       .split(',')
@@ -198,7 +225,6 @@ export class ExcelService {
                 }
               }
             } else {
-              // YENİ: Data validation var ama type 'list' değil → text
               if (!this.columnTypes.has(columnName)) {
                 this.columnTypes.set(columnName, 'text');
               }
@@ -316,12 +342,7 @@ export class ExcelService {
     let currentGroup: ExcelGroup | null = null;
     let columnIndex = 1;
 
-    // E1 ve E2 için özel işlem
-   // const worksheet = this.worksheet;
-    //const e1Value = worksheet.getCell('E1').value?.toString() || 'Başlık';
-    //const e2Value = worksheet.getCell('E2').value?.toString() || '';
-
-    // INFO grubunu başlangıçta oluştur
+    // INFO grubu
     const infoGroup: ExcelGroup = {
       name: 'INFO',
       color: 'FFFFFF',
@@ -330,6 +351,36 @@ export class ExcelService {
       endColumn: 2
     };
     groups.push(infoGroup);
+
+    // SAMPLE grubu
+    const sampleGroup: ExcelGroup = {
+      name: 'SAMPLE',
+      color: 'FFFFFF',
+      columns: ['sample_this', 'Sample Number'],
+      startColumn: 3,
+      endColumn: 4
+    };
+    groups.push(sampleGroup);
+
+    // CG4 ve CH4 başlıklarını ve verileri işle
+    //const cg4Value = this.worksheet.getCell('CG4').value?.toString() || 'sample_this';
+    //const ch4Value = this.worksheet.getCell('CH4').value?.toString() || 'Sample Number';
+
+    // CG5 ve CH5'ten başlayan verileri al
+    let rowIndex = 5;
+    while (rowIndex <= this.worksheet.rowCount) {
+      const cgValue = this.worksheet.getCell(`CG${rowIndex}`).value;
+      const chValue = this.worksheet.getCell(`CH${rowIndex}`).value;
+      if (cgValue || chValue) {
+        // Verileri formData'ya ekle
+         // const rowData: Record<string, any> = {
+          //'sample_this': cgValue,
+          //'Sample Number': chValue
+        //};
+        // ... existing row processing code ...
+      }
+      rowIndex++;
+    }
 
     while (columnIndex <= columnRow.cellCount) {
       const groupCell = groupRow.getCell(columnIndex);
@@ -391,7 +442,9 @@ export class ExcelService {
       const excelRow = this.worksheet.getRow(rowIndex);
       const rowData: Record<string, any> = {
         'E1_HEADER': e1Value,
-        'E2_INPUT': e2Value
+        'E2_INPUT': e2Value,
+        'sample_this': this.worksheet.getCell(`CG${rowIndex}`).value,
+        'Sample Number': this.worksheet.getCell(`CH${rowIndex}`).value
       };
 
       groups.forEach(group => {
@@ -421,7 +474,7 @@ export class ExcelService {
   /**
    * Verilen satır index'ine göre Excel'e veri yazar, workbook'u tekrar kaydeder.
    */
-  async saveChanges(rowIndex: number, data: Record<string, any>): Promise<boolean> {
+  async saveChanges(rowIndex: number, data: Record<string, any>, collarData?: Record<string, any>): Promise<boolean> {
     try {
       if (!this.worksheet || !this.workbook || !this.currentFile) {
         throw new Error('Worksheet not loaded');
@@ -437,6 +490,17 @@ export class ExcelService {
           row.getCell(columnIndex).value = value;
         }
       });
+
+      // COLLAR verilerini güncelle
+      if (collarData && this.collarWorksheet) {
+        const collarRow = this.collarWorksheet.getRow(COLLAR_CONFIG.dataStartRow);
+        Object.entries(collarData).forEach(([columnName, value]) => {
+          const cell = this.findCollarCell(columnName);
+          if (cell) {
+            cell.value = value;
+          }
+        });
+      }
 
       // Workbook'u buffer'a yaz
       const buffer = await this.workbook.xlsx.writeBuffer();
@@ -477,6 +541,26 @@ export class ExcelService {
     return columnIndex;
   }
 
+  /**
+   * COLLAR sayfasında belirli bir sütun adının hücresini bulur.
+   */
+  private findCollarCell(columnName: string): ExcelJS.Cell | null {
+    if (!this.collarWorksheet) return null;
+
+    const headerRow = this.collarWorksheet.getRow(COLLAR_CONFIG.columnRow);
+    let columnIndex = -1;
+
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      if (cell.value?.toString() === columnName) {
+        columnIndex = colNumber;
+      }
+    });
+
+    if (columnIndex === -1) return null;
+
+    return this.collarWorksheet.getCell(COLLAR_CONFIG.dataStartRow, columnIndex);
+  }
+
   private async extractCollarData(): Promise<any> {
     if (!this.collarWorksheet) return null;
 
@@ -492,5 +576,257 @@ export class ExcelService {
     });
 
     return collarData;
+  }
+
+  async getLithCodesFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const lithCodes: string[] = [];
+      let rowIndex = 2; // A2'den başla
+      
+      // A sütunundaki değerleri oku
+      while (rowIndex <= 20) { // A20'ye kadar
+        const cell = dataSheet.getCell(`A${rowIndex}`);
+        
+        // Eğer hücre koyu renkliyse veya boşsa döngüyü bitir
+        if (!cell || cell.font?.bold || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        lithCodes.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return lithCodes;
+    } catch (error) {
+      console.error('LithCode değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getZoneCodesFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const zoneCodes: string[] = [];
+      let rowIndex = 29; // A29'dan başla
+      
+      // A sütunundaki değerleri oku
+      while (rowIndex <= 40) { // A40'a kadar
+        const cell = dataSheet.getCell(`A${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        zoneCodes.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return zoneCodes;
+    } catch (error) {
+      console.error('Zone değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getWeatheringCodesFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const weatheringCodes: string[] = [];
+      let rowIndex = 2; // M2'den başla
+      
+      // M sütunundaki değerleri oku
+      while (rowIndex <= 30) { // M30'a kadar
+        const cell = dataSheet.getCell(`M${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        weatheringCodes.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return weatheringCodes;
+    } catch (error) {
+      console.error('Weathering değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getMjrDefectTypesFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const defectTypes: string[] = [];
+      let rowIndex = 33; // Q33'den başla
+      
+      // Q sütunundaki değerleri oku
+      while (rowIndex <= 50) { // Q50'ye kadar
+        const cell = dataSheet.getCell(`Q${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        defectTypes.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return defectTypes;
+    } catch (error) {
+      console.error('Mjr_defect type değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getRockStrengthFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const strengthValues: string[] = [];
+      let rowIndex = 12; // W12'den başla
+      
+      // W sütunundaki değerleri oku
+      while (rowIndex <= 30) { // W30'a kadar
+        const cell = dataSheet.getCell(`W${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        strengthValues.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return strengthValues;
+    } catch (error) {
+      console.error('Rock Strength değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getAlterationTypesFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const alterationTypes: string[] = [];
+      let rowIndex = 2; // Z2'den başla
+      
+      // Z sütunundaki değerleri oku
+      while (rowIndex <= 40) { // Z40'a kadar
+        const cell = dataSheet.getCell(`Z${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        alterationTypes.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return alterationTypes;
+    } catch (error) {
+      console.error('Alteration Type değerleri okunurken hata:', error);
+      return [];
+    }
+  }
+
+  async getMinZoneFromDataSheet(): Promise<string[]> {
+    try {
+      if (!this.workbook) {
+        throw new Error('Excel dosyası yüklenmemiş');
+      }
+
+      // Data Sheet'i al
+      const dataSheet = this.workbook.getWorksheet('DATA');
+      if (!dataSheet) {
+        throw new Error('Data Sheet bulunamadı');
+      }
+
+      const minZoneValues: string[] = [];
+      let rowIndex = 2; // AC2'den başla
+      
+      // AC sütunundaki değerleri oku
+      while (rowIndex <= 30) { // AC30'a kadar
+        const cell = dataSheet.getCell(`AC${rowIndex}`);
+        
+        // Eğer hücre boşsa döngüyü bitir
+        if (!cell || !cell.value) {
+          break;
+        }
+        
+        // Değeri ekle
+        minZoneValues.push(cell.value.toString().trim());
+        rowIndex++;
+      }
+
+      return minZoneValues;
+    } catch (error) {
+      console.error('Min Zone değerleri okunurken hata:', error);
+      return [];
+    }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ExcelService } from '../services/excel.service';
 import { Button } from "@/components/ui/button"
@@ -85,7 +85,8 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
     if (isAlteration) return '#fff2e6';
     if (isGeotechnical) return '#dcfce7';
     if (isMineralization) return '#e6f3ff';
-    if (isInfo) return '#f3f4f6';
+    if (isInfo) return '#f1f5f9';
+    if (group.name.toLowerCase() === 'sample') return '#e0f2fe';
     return '#f3e6ff';
   };
 
@@ -94,7 +95,8 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
     if (isAlteration) return 'rgba(255, 237, 213, 0.3)';
     if (isGeotechnical) return 'rgba(220, 252, 231, 0.3)';
     if (isMineralization) return 'rgba(230, 243, 255, 0.3)';
-    if (isInfo) return 'rgba(243, 244, 246, 0.3)';
+    if (isInfo) return 'rgba(241, 245, 249, 0.3)';
+    if (group.name.toLowerCase() === 'sample') return 'rgba(224, 242, 254, 0.3)';
     return 'transparent';
   };
 
@@ -103,7 +105,8 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
     if (isAlteration) return '#f97316';
     if (isGeotechnical) return '#22c55e';
     if (isMineralization) return '#3b82f6';
-    if (isInfo) return '#6b7280';
+    if (isInfo) return '#64748b';
+    if (group.name.toLowerCase() === 'sample') return '#0ea5e9';
     return group.color;
   };
 
@@ -112,7 +115,8 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
     if (isAlteration) return '#c2410c';
     if (isGeotechnical) return '#15803d';
     if (isMineralization) return '#1d4ed8';
-    if (isInfo) return '#374151';
+    if (isInfo) return '#334155';
+    if (group.name.toLowerCase() === 'sample') return '#0369a1';
     return '#7e22ce';
   };
 
@@ -142,11 +146,11 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
               backgroundColor: getDotColor()
             }}
           />
-          <h3 className="text-xs font-medium" style={{
+          <h3 className="text-[15px] font-medium" style={{
             color: getTextColor()
           }}>
             {group.name}
-            <span className="ml-1 text-[10px] opacity-70">
+            <span className="ml-1 text-[15px] opacity-70">
               ({group.columns.length})
             </span>
           </h3>
@@ -161,6 +165,7 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
           isAlteration ? 'grid-cols-4 lg:grid-cols-4' :
           isGeotechnical ? 'grid-cols-2 lg:grid-cols-2' :
           isMineralization ? 'grid-cols-2 lg:grid-cols-2' :
+          group.name.toLowerCase() === 'sample' ? 'grid-cols-1' :
           'grid-cols-4 lg:grid-cols-5'
         } gap-0.5`}>
           {group.columns.sort((a, b) => {
@@ -232,7 +237,7 @@ const DraggableGroupBox: React.FC<DraggableGroupBoxProps> = ({
             <div key={columnIndex} className={`min-w-[100px] bg-white rounded p-0.5 ${isInfo ? 'h-[50px]' : 'h-[45px]'}`}>
               <Label 
                 htmlFor={column} 
-                className={`text-[8px] ${
+                className={`text-[13px] ${
                   isAlteration ? 'text-orange-700' :
                   isGeotechnical ? 'text-green-700' :
                   isMineralization ? 'text-blue-700' :
@@ -264,6 +269,13 @@ export const ExcelForm: React.FC = () => {
     const saved = localStorage.getItem('groupOrder');
     return saved ? JSON.parse(saved) : [];
   });
+  const [lithCodes, setLithCodes] = useState<string[]>([]);
+  const [zoneCodes, setZoneCodes] = useState<string[]>([]);
+  const [weatheringCodes, setWeatheringCodes] = useState<string[]>([]);
+  const [mjrDefectTypes, setMjrDefectTypes] = useState<string[]>([]);
+  const [rockStrengthValues, setRockStrengthValues] = useState<string[]>([]);
+  const [alterationTypes, setAlterationTypes] = useState<string[]>([]);
+  const [minZoneValues, setMinZoneValues] = useState<string[]>([]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     try {
@@ -321,18 +333,121 @@ export const ExcelForm: React.FC = () => {
     multiple: false
   });
 
-  const handlePreviousRow = () => {
-    if (currentRowIndex > 0 && excelData) {
-      setCurrentRowIndex(prev => prev - 1);
-      setFormData(excelData.rows[currentRowIndex - 1]);
+  const handleInputChange = (columnName: string, value: string) => {
+    if (!excelData) return;
+
+    // Mevcut satırın verilerini güncelle
+    const updatedRows = [...excelData.rows];
+    const currentRowData = { ...updatedRows[currentRowIndex], [columnName]: value };
+    updatedRows[currentRowIndex] = currentRowData;
+
+    // Dataset (E1_HEADER) veya Hole ID değiştiğinde tüm satırlarda güncelle
+    if (columnName === 'E1_HEADER' || columnName === 'Hole ID') {
+      // Tüm satırlarda güncelle
+      updatedRows.forEach((row, index) => {
+        updatedRows[index] = {
+          ...row,
+          [columnName]: value
+        };
+      });
+
+      // COLLAR verilerini de güncelle
+      if (excelData.collarData) {
+        const updatedCollarData = {
+          ...excelData.collarData,
+          [columnName === 'E1_HEADER' ? 'Dataset' : 'Hole ID']: value
+        };
+
+        setExcelData({
+          ...excelData,
+          rows: updatedRows,
+          collarData: updatedCollarData
+        });
+      }
+    } else {
+      // m_To değiştiğinde ve sonraki satır varsa, sonraki satırın m_From değerini güncelle
+      if (columnName === 'm_To' && currentRowIndex < updatedRows.length - 1) {
+        updatedRows[currentRowIndex + 1] = {
+          ...updatedRows[currentRowIndex + 1],
+          m_From: value
+        };
+      }
+
+      // ExcelData'yı güncelle
+      setExcelData({
+        ...excelData,
+        rows: updatedRows
+      });
+    }
+
+    // Form verilerini güncelle
+    setFormData(currentRowData);
+  };
+
+  // COLLAR verilerini güncelleme fonksiyonu
+  const handleCollarInputChange = (key: string, value: string) => {
+    if (!excelData?.collarData) return;
+
+    const updatedCollarData = {
+      ...excelData.collarData,
+      [key]: value
+    };
+
+    // Dataset veya Hole ID değiştiğinde INFO grubundaki karşılık gelen değerleri de güncelle
+    if (key === 'Dataset' || key === 'Hole ID') {
+      const updatedRows = excelData.rows.map(row => ({
+        ...row,
+        [key === 'Dataset' ? 'E1_HEADER' : 'Hole ID']: value
+      }));
+
+      setExcelData({
+        ...excelData,
+        rows: updatedRows,
+        collarData: updatedCollarData
+      });
+
+      // Mevcut form verilerini de güncelle
+      setFormData(updatedRows[currentRowIndex]);
+    } else {
+      setExcelData({
+        ...excelData,
+        collarData: updatedCollarData
+      });
     }
   };
 
   const handleNextRow = () => {
-    if (excelData && currentRowIndex < excelData.rows.length - 1) {
-      setCurrentRowIndex(prev => prev + 1);
-      setFormData(excelData.rows[currentRowIndex + 1]);
-    }
+    if (!excelData || currentRowIndex >= excelData.rows.length - 1) return;
+
+    const nextIndex = currentRowIndex + 1;
+    const updatedRows = [...excelData.rows];
+    
+    // Mevcut satırın m_To değerini al
+    const currentM_To = formatValue(updatedRows[currentRowIndex].m_To);
+    
+    // Sonraki satırın m_From değerini güncelle
+    updatedRows[nextIndex] = {
+      ...updatedRows[nextIndex],
+      m_From: currentM_To
+    };
+
+    // ExcelData'yı güncelle
+    setExcelData({
+      ...excelData,
+      rows: updatedRows
+    });
+
+    // Satır indeksini güncelle ve yeni form verilerini ayarla
+    setCurrentRowIndex(nextIndex);
+    setFormData(updatedRows[nextIndex]);
+  };
+
+  const handlePreviousRow = () => {
+    if (!excelData || currentRowIndex <= 0) return;
+
+    const prevIndex = currentRowIndex - 1;
+    setCurrentRowIndex(prevIndex);
+    setFormData(excelData.rows[prevIndex]);
   };
 
   const formatValue = (value: any): string => {
@@ -376,19 +491,13 @@ export const ExcelForm: React.FC = () => {
     return String(value || '');
   };
 
-  const handleInputChange = (columnName: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [columnName]: value
-    }));
-  };
-
   const handleSave = async () => {
     if (!excelData) return;
 
     setIsSaving(true);
     try {
-      const success = await excelService.saveChanges(currentRowIndex, formData);
+      // COLLAR verilerini ve mevcut satır verilerini kaydet
+      const success = await excelService.saveChanges(currentRowIndex, formData, excelData.collarData as any);
       
       if (success) {
         const updatedRows = [...excelData.rows];
@@ -412,6 +521,12 @@ export const ExcelForm: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  // İzin verilen SAMPLE alanları ekleniyor
+  const allowedSampleColumns = [
+    'sample_this',
+    'Sample Number'
+  ];
 
   // Grupları birleştir
   const mergedGroups = useMemo(() => {
@@ -489,6 +604,13 @@ export const ExcelForm: React.FC = () => {
           );
         }
         
+        // İzin verilen SAMPLE alanları ekleniyor
+        if (groupName.toLowerCase().includes('sample')) {
+          filteredColumns = filteredColumns.filter(column => 
+            allowedSampleColumns.includes(column)
+          );
+        }
+        
         existingGroup.columns = filteredColumns;
       } else {
         // Yeni grup oluştur
@@ -513,6 +635,13 @@ export const ExcelForm: React.FC = () => {
           );
         }
         
+        // İzin verilen SAMPLE alanları ekleniyor
+        if (groupName.toLowerCase().includes('sample')) {
+          columns = columns.filter(column => 
+            allowedSampleColumns.includes(column)
+          );
+        }
+        
         groupMap.set(groupName, { ...group, name: groupName, columns });
       }
     });
@@ -520,31 +649,301 @@ export const ExcelForm: React.FC = () => {
     return Array.from(groupMap.values());
   }, [excelData?.groups]);
 
-  // LithCode seçenekleri
-  const lithCodes = [
-    'ALL',
-    'ABX',
-    'AND',
-    'CORELOST',
-    'FZ',
-    'FZ1',
-    'HBX',
-    'NC',
-    'MNBX',
-    'MS',
-    'PLBX',
-    'PQRF1',
-    'VOLSED',
-    'VBX',
-    'QBX',
-    'QV',
-    'QZSULP'
-  ];
+  // Excel yüklendiğinde değerleri alalım
+  useEffect(() => {
+    if (excelData) {
+      const loadCodes = async () => {
+        try {
+          // LithCode değerlerini yükle
+          const codes = await excelService.getLithCodesFromDataSheet();
+          if (codes && codes.length > 0) {
+            setLithCodes(codes);
+          } else {
+            setLithCodes([
+              'ALL',
+              'ABX',
+              'AND',
+              'CORELOST',
+              'FZ',
+              'FZ1',
+              'HBX',
+              'NC',
+              'MNBX',
+              'MS',
+              'PLBX',
+              'PQRF1',
+              'VOLSED',
+              'VBX',
+              'QBX',
+              'QV',
+              'QZSULP'
+            ]);
+          }
+
+          // Zone değerlerini yükle
+          const zones = await excelService.getZoneCodesFromDataSheet();
+          if (zones && zones.length > 0) {
+            setZoneCodes(zones);
+          }
+
+          // Weathering değerlerini yükle
+          const weatherings = await excelService.getWeatheringCodesFromDataSheet();
+          if (weatherings && weatherings.length > 0) {
+            setWeatheringCodes(weatherings);
+          }
+
+          // Mjr_defect type değerlerini yükle
+          const defectTypes = await excelService.getMjrDefectTypesFromDataSheet();
+          if (defectTypes && defectTypes.length > 0) {
+            setMjrDefectTypes(defectTypes);
+          }
+
+          // Rock Strength değerlerini yükle
+          const strengthValues = await excelService.getRockStrengthFromDataSheet();
+          if (strengthValues && strengthValues.length > 0) {
+            setRockStrengthValues(strengthValues);
+          }
+
+          // Alteration Type değerlerini yükle
+          const alterationTypeValues = await excelService.getAlterationTypesFromDataSheet();
+          if (alterationTypeValues && alterationTypeValues.length > 0) {
+            setAlterationTypes(alterationTypeValues);
+          }
+
+          // Min Zone değerlerini yükle
+          const minZones = await excelService.getMinZoneFromDataSheet();
+          if (minZones && minZones.length > 0) {
+            setMinZoneValues(minZones);
+          }
+        } catch (error) {
+          console.error('Kod değerleri yüklenirken hata:', error);
+          toast.error('Kod değerleri yüklenemedi');
+        }
+      };
+
+      loadCodes();
+    }
+  }, [excelData]);
+
+  // LithCode sütunları için özel dropdown
+  const renderLithCodeDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue || "ALL"}
+          value={currentValue || "ALL"}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="G" />
+          </SelectTrigger>
+          <SelectContent>
+            {lithCodes.map((code) => (
+              <SelectItem key={code} value={code} className="text-[14px]">
+                {code}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+     
+      </div>
+    );
+  };
+
+  // Zone sütunu için özel dropdown
+  const renderZoneDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {zoneCodes.map((code) => (
+              <SelectItem key={code} value={code} className="text-[14px]">
+                {code}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+     
+      </div>
+    );
+  };
+
+  // Weathering sütunu için özel dropdown
+  const renderWeatheringDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {weatheringCodes.map((code) => (
+              <SelectItem key={code} value={code} className="text-[14px]">
+                {code}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      
+      </div>
+    );
+  };
+
+  // Mjr_defect type sütunu için özel dropdown
+  const renderMjrDefectTypeDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {mjrDefectTypes.map((type) => (
+              <SelectItem key={type} value={type} className="text-[14px]">
+                {type}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
+  // Rock Strength sütunu için özel dropdown
+  const renderRockStrengthDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {rockStrengthValues.map((strength) => (
+              <SelectItem key={strength} value={strength} className="text-[14px]">
+                {strength}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
+  // Alteration Type sütunu için özel dropdown
+  const renderAlterationTypeDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {alterationTypes.map((type) => (
+              <SelectItem key={type} value={type} className="text-[14px]">
+                {type}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
+  // Min Zone sütunu için özel dropdown
+  const renderMinZoneDropdown = (column: string) => {
+    const currentValue = formatValue(formData[column]);
+    
+    return (
+      <div className="relative">
+        <Select
+          defaultValue={currentValue}
+          value={currentValue}
+          onValueChange={(value) => handleInputChange(column, value)}
+          disabled={isSaving}
+        >
+          <SelectTrigger className="h-6 w-full text-[14px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {minZoneValues.map((zone) => (
+              <SelectItem key={zone} value={zone} className="text-[14px]">
+                {zone}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
 
   const renderFormField = (column: string) => {
     const columnType = excelService.getColumnType(column);
     const dropdownValues = excelService.getDropdownValues(column);
     
+    // sample_this için özel dropdown
+    if (column === 'sample_this') {
+      const currentValue = formatValue(formData[column]);
+      return (
+        <div className="relative">
+          <Select
+            defaultValue={currentValue}
+            value={currentValue}
+            onValueChange={(value) => handleInputChange(column, value)}
+            disabled={isSaving}
+          >
+            <SelectTrigger className="h-6 w-full text-[14px]">
+              <SelectValue placeholder="Seçiniz..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Yes" className="text-[14px]">Yes</SelectItem>
+              <SelectItem value="No" className="text-[14px]">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
     // E1_HEADER ve E2_INPUT için özel görüntüleme
     if (column === 'E1_HEADER') {
       return (
@@ -552,7 +951,7 @@ export const ExcelForm: React.FC = () => {
           id={column}
           value={formatValue(formData['E2_INPUT'])}
           disabled={false}
-          className="h-6 w-full text-[9px]"
+          className="h-6 w-full text-[14px]"
         />
       );
     }
@@ -563,30 +962,67 @@ export const ExcelForm: React.FC = () => {
     
     // LithCode sütunları için özel dropdown
     if (column === 'Lith1               Code' || column === 'Lith2               Code') {
-      const currentValue = formatValue(formData[column]);
-      
+      return renderLithCodeDropdown(column);
+    }
+
+    // Zone sütunu için özel dropdown
+    if (column.includes('Zone') && column !== 'Min                    Zone') {
+      return renderZoneDropdown(column);
+    }
+
+    // Min Zone sütunu için özel dropdown
+    if (column === 'Min                    Zone') {
+      return renderMinZoneDropdown(column);
+    }
+
+    // Weathering sütunu için özel dropdown
+    if (column === 'Weathering') {
+      return renderWeatheringDropdown(column);
+    }
+
+    // Mjr_defect type sütunu için özel dropdown
+    if (column === 'Mjr_defect              type') {
+      return renderMjrDefectTypeDropdown(column);
+    }
+
+    // Rock Strength sütunu için özel dropdown
+    if (column === 'Rock                      Strength') {
+      return renderRockStrengthDropdown(column);
+    }
+
+    // Alteration Type sütunu için özel dropdown
+    if (column === 'Alteration               Type') {
+      return renderAlterationTypeDropdown(column);
+    }
+
+    // ALTERATION altındaki alanlar için Rock Strength değerlerini kullanan dropdown
+    if (column === 'Arg                       Kaolinite' ||
+        column === 'Serisite' ||
+        column === 'Dickite' ||
+        column === 'Alunite' ||
+        column === 'Chlorite' ||
+        column === 'Epidote' ||
+        column === 'Carbonate' ||
+        column === 'Oxidation') {
       return (
         <div className="relative">
           <Select
-            defaultValue={currentValue || "ALL"}
-            value={currentValue || "ALL"}
+            defaultValue={formatValue(formData[column])}
+            value={formatValue(formData[column])}
             onValueChange={(value) => handleInputChange(column, value)}
             disabled={isSaving}
           >
-            <SelectTrigger className="h-6 w-full text-[9px]">
-              <SelectValue placeholder="LithCode seçiniz..." />
+            <SelectTrigger className="h-6 w-full text-[14px]">
+              <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
-              {lithCodes.map((code) => (
-                <SelectItem key={code} value={code} className="text-[9px]">
-                  {code}
+              {rockStrengthValues.map((strength) => (
+                <SelectItem key={strength} value={strength} className="text-[14px]">
+                  {strength}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <div className="absolute top-0 right-0 -mr-2 text-[7px] text-muted-foreground">
-            (L)
-          </div>
         </div>
       );
     }
@@ -602,19 +1038,19 @@ export const ExcelForm: React.FC = () => {
             onValueChange={(value) => handleInputChange(column, value)}
             disabled={isSaving}
           >
-            <SelectTrigger className="h-6 w-full text-[9px]">
+            <SelectTrigger className="h-6 w-full text-[14px]">
               <SelectValue placeholder="Seçiniz..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default" className="text-[9px]">Seçiniz...</SelectItem>
+              <SelectItem value="default" className="text-[14px]">Seçiniz...</SelectItem>
               {dropdownValues.map((value, index) => (
-                <SelectItem key={`${value}-${index}`} value={value} className="text-[9px]">
+                <SelectItem key={`${value}-${index}`} value={value} className="text-[14px]">
                   {value}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <div className="absolute top-0 right-0 -mr-2 text-[7px] text-muted-foreground">
+          <div className="absolute top-0 right-0 -mr-2 text-[12px] text-muted-foreground">
             (L)
           </div>
         </div>
@@ -627,7 +1063,7 @@ export const ExcelForm: React.FC = () => {
         value={formatValue(formData[column])}
         onChange={(e) => handleInputChange(column, e.target.value)}
         disabled={isSaving}
-        className="h-6 w-full text-[9px]"
+        className="h-6 w-full text-[14px]"
       />
     );
   };
@@ -686,6 +1122,13 @@ export const ExcelForm: React.FC = () => {
     const mineralizationGroup = groups.find(g => g.name.toLowerCase().includes('mineralization'));
     const alterationGroup = groups.find(g => g.name.toLowerCase().includes('alteration'));
     const geotechnicalGroup = groups.find(g => g.name.toLowerCase().includes('geotecnical'));
+    const sampleGroup = {
+      name: 'SAMPLE',
+      color: 'FFFFFF',
+      columns: ['sample_this', 'Sample Number'],
+      startColumn: 1,
+      endColumn: 2
+    };
 
     return (
       <div className="flex flex-col gap-1 w-full">
@@ -706,24 +1149,24 @@ export const ExcelForm: React.FC = () => {
           {excelData?.collarData && (
             <div className="w-[75%]">
               <div className="bg-white rounded-lg shadow-sm m-1">
-                <div className="px-2 py-0.5 rounded-t-lg flex items-center justify-between bg-gray-100">
+                <div className="px-2 py-0.5 rounded-t-lg flex items-center justify-between bg-slate-100">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-gray-500" />
-                    <h3 className="text-xs font-medium text-gray-700">
+                    <div className="w-2 h-2 rounded-full bg-slate-500" />
+                    <h3 className="text-xs font-medium text-slate-700">
                       COLLAR
-                      <span className="ml-1 text-[10px] opacity-70">
+                      <span className="ml-1 text-[15px] opacity-70">
                         ({Object.keys(excelData.collarData).length})
                       </span>
                     </h3>
                   </div>
                 </div>
-                <div className="p-0.5 bg-gray-50/30">
+                <div className="p-0.5 bg-slate-50/30">
                   <div className="grid grid-cols-7 gap-0.5">
                     {Object.entries(excelData.collarData).map(([key, value], index) => (
                       <div key={index} className="min-w-[100px] bg-white rounded p-0.5 h-[45px]">
                         <Label
                           htmlFor={key}
-                          className="text-[8px] text-gray-600 font-medium mb-0.5 block truncate"
+                          className="text-[13px] text-gray-600 font-medium mb-0.5 block truncate"
                           title={key}
                         >
                           {key}
@@ -731,11 +1174,9 @@ export const ExcelForm: React.FC = () => {
                         <Input
                           id={key}
                           value={formatValue(value)}
-                          onChange={() => {
-                            // COLLAR verilerini güncelleme mantığı buraya eklenecek
-                          }}
+                          onChange={(e) => handleCollarInputChange(key, e.target.value)}
                           disabled={isSaving}
-                          className="h-6 w-full text-[9px]"
+                          className="h-6 w-full text-[14px]"
                         />
                       </div>
                     ))}
@@ -783,7 +1224,7 @@ export const ExcelForm: React.FC = () => {
             </div>
           )}
           {geotechnicalGroup && (
-            <div className="w-[25%]">
+            <div className="w-[25%] flex flex-col">
               <DraggableGroupBox
                 key={geotechnicalGroup.name}
                 group={geotechnicalGroup}
@@ -792,6 +1233,16 @@ export const ExcelForm: React.FC = () => {
                 renderFormField={renderFormField}
                 style={{}}
               />
+              <div className="w-full mt-1">
+                <DraggableGroupBox
+                  key={sampleGroup.name}
+                  group={sampleGroup}
+                  index={-1}
+                  moveBox={moveBox}
+                  renderFormField={renderFormField}
+                  style={{}}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -859,13 +1310,13 @@ export const ExcelForm: React.FC = () => {
               <div className="sticky top-0 z-10 bg-background border-b py-1 px-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span className="text-sm font-bold">Satır {currentRowIndex + 1} / {excelData.rows.length}</span>
+                    <span className="text-[17px] font-bold">Satır {currentRowIndex + 1} / {excelData.rows.length}</span>
                   </div>
                   <Button 
                     onClick={handleSave} 
                     size="sm"
                     disabled={isSaving}
-                    className="h-6 px-2 flex items-center gap-1 text-xs"
+                    className="h-6 px-2 flex items-center gap-1 text-[14px]"
                   >
                     <FiSave size={12} />
                     {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
@@ -878,17 +1329,31 @@ export const ExcelForm: React.FC = () => {
             </div>
             
             {/* Sayfalama Butonları - Sağ Alt Sabit */}
-            <div className="fixed bottom-1 right-1 flex items-center gap-1 bg-background/80 backdrop-blur-sm p-1 rounded-md shadow-lg z-50">
+            <div className="fixed bottom-2 right-2 flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-md shadow-lg z-50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newIndex = Math.max(0, currentRowIndex - 10);
+                  setCurrentRowIndex(newIndex);
+                  setFormData(excelData.rows[newIndex]);
+                }}
+                disabled={currentRowIndex === 0 || isSaving}
+                className="h-8 px-2 flex items-center gap-1"
+              >
+                <FiChevronLeft size={14} />
+                <FiChevronLeft size={14} className="-ml-1" />
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePreviousRow}
                 disabled={currentRowIndex === 0 || isSaving}
-                className="h-6 w-6 p-0"
+                className="h-8 w-8 p-0"
               >
-                <FiChevronLeft size={12} />
+                <FiChevronLeft size={14} />
               </Button>
-              <span className="text-xs font-medium px-1">
+              <span className="text-[16px] font-medium px-2 min-w-[100px] text-center">
                 {currentRowIndex + 1} / {excelData.rows.length}
               </span>
               <Button
@@ -896,9 +1361,23 @@ export const ExcelForm: React.FC = () => {
                 size="sm"
                 onClick={handleNextRow}
                 disabled={currentRowIndex === excelData.rows.length - 1 || isSaving}
-                className="h-6 w-6 p-0"
+                className="h-8 w-8 p-0"
               >
-                <FiChevronRight size={12} />
+                <FiChevronRight size={14} />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newIndex = Math.min(excelData.rows.length - 1, currentRowIndex + 10);
+                  setCurrentRowIndex(newIndex);
+                  setFormData(excelData.rows[newIndex]);
+                }}
+                disabled={currentRowIndex === excelData.rows.length - 1 || isSaving}
+                className="h-8 px-2 flex items-center gap-1"
+              >
+                <FiChevronRight size={14} />
+                <FiChevronRight size={14} className="-ml-1" />
               </Button>
             </div>
           </div>
