@@ -493,7 +493,7 @@ export class ExcelService {
 
       // COLLAR verilerini güncelle
       if (collarData && this.collarWorksheet) {
-        const collarRow = this.collarWorksheet.getRow(COLLAR_CONFIG.dataStartRow);
+//        const collarRow = this.collarWorksheet.getRow(COLLAR_CONFIG.dataStartRow);
         Object.entries(collarData).forEach(([columnName, value]) => {
           const cell = this.findCollarCell(columnName);
           if (cell) {
