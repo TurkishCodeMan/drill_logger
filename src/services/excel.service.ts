@@ -317,9 +317,9 @@ export class ExcelService {
     let columnIndex = 1;
 
     // E1 ve E2 için özel işlem
-    const worksheet = this.worksheet;
-    const e1Value = worksheet.getCell('E1').value?.toString() || 'Başlık';
-    const e2Value = worksheet.getCell('E2').value?.toString() || '';
+   // const worksheet = this.worksheet;
+    //const e1Value = worksheet.getCell('E1').value?.toString() || 'Başlık';
+    //const e2Value = worksheet.getCell('E2').value?.toString() || '';
 
     // INFO grubunu başlangıçta oluştur
     const infoGroup: ExcelGroup = {

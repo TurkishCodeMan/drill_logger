@@ -731,7 +731,7 @@ export const ExcelForm: React.FC = () => {
                         <Input
                           id={key}
                           value={formatValue(value)}
-                          onChange={(e) => {
+                          onChange={() => {
                             // COLLAR verilerini güncelleme mantığı buraya eklenecek
                           }}
                           disabled={isSaving}
