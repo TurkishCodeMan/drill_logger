@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ExcelData, ExcelGroup } from '@/types/excel.types';
-import { ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { FiChevronLeft, FiChevronRight, FiSave } from 'react-icons/fi';
 import { toast } from 'sonner';
 
 const excelService = new ExcelService();
@@ -180,35 +180,165 @@ export const ExcelForm: React.FC = () => {
   const mergedGroups = useMemo(() => {
     if (!excelData?.groups) return [];
 
+    // İzin verilen MINERALIZATION alanları - tam olarak belirtilen formatta
+    const allowedMineralizationColumns = [
+      'Vein          Type',
+      'QzVn %',
+      'QzBx %',
+      'Bx                   Clast',
+      'Bx                  Matrix',
+      'Min                    Zone',
+      'Pima                   Sample',
+      'Comments'
+    ];
+
+    // İzin verilen ALTERATION alanları - tam olarak belirtilen formatta
+    const allowedAlterationColumns = [
+      'Alteration               Type',
+      'Sil            Deg',
+      'Pyrite',
+      'Vuggy%',
+      'Arg                       Kaolinite',
+      'Serisite',
+      'Dickite',
+      'Alunite',
+      'Chlorite',
+      'Epidote',
+      'Carbonate',
+      'Gypsum',
+      'Oxidation'
+    ];
+
+    // İzin verilen GEOTECHNICAL alanları - tam olarak belirtilen formatta
+    const allowedGeotechnicalColumns = [
+      'Weathering',
+      'recovery_m',
+      'rqd',
+      'Mjr_defect              type',
+      'Mjr_defect               alpha',
+      'Frac',
+      'Rock                      Strength'
+    ];
+
     const groupMap = new Map<string, ExcelGroup>();
 
     excelData.groups.forEach(group => {
-      if (groupMap.has(group.name)) {
+      // Grup adını kontrol et ve düzelt
+      const groupName = group.name && group.name !== '[object Object]' ? group.name : 'INFO';
+      
+      if (groupMap.has(groupName)) {
         // Mevcut grubun sütunlarını ekle
-        const existingGroup = groupMap.get(group.name)!;
+        const existingGroup = groupMap.get(groupName)!;
         const uniqueColumns = new Set([...existingGroup.columns, ...group.columns]);
-        existingGroup.columns = Array.from(uniqueColumns);
+        
+        let filteredColumns = Array.from(uniqueColumns);
+        
+        // MINERALIZATION grubu için tam eşleşme filtrelemesi
+        if (groupName.toLowerCase().includes('mineralization')) {
+          filteredColumns = filteredColumns.filter(column => 
+            allowedMineralizationColumns.includes(column)
+          );
+        }
+        // ALTERATION grubu için tam eşleşme filtrelemesi
+        else if (groupName.toLowerCase().includes('alteration')) {
+          filteredColumns = filteredColumns.filter(column => 
+            allowedAlterationColumns.includes(column)
+          );
+        }
+        // GEOTECHNICAL grubu için tam eşleşme filtrelemesi
+        else if (groupName.toLowerCase().includes('geotecnical')) {
+          filteredColumns = filteredColumns.filter(column => 
+            allowedGeotechnicalColumns.includes(column)
+          );
+        }
+        
+        existingGroup.columns = filteredColumns;
       } else {
         // Yeni grup oluştur
-        groupMap.set(group.name, { ...group, columns: [...group.columns] });
+        let columns = [...group.columns];
+        
+        // MINERALIZATION grubu için tam eşleşme filtrelemesi
+        if (groupName.toLowerCase().includes('mineralization')) {
+          columns = columns.filter(column => 
+            allowedMineralizationColumns.includes(column)
+          );
+        }
+        // ALTERATION grubu için tam eşleşme filtrelemesi
+        else if (groupName.toLowerCase().includes('alteration')) {
+          columns = columns.filter(column => 
+            allowedAlterationColumns.includes(column)
+          );
+        }
+        // GEOTECHNICAL grubu için tam eşleşme filtrelemesi
+        else if (groupName.toLowerCase().includes('geotechnical')) {
+          columns = columns.filter(column => 
+            allowedGeotechnicalColumns.includes(column)
+          );
+        }
+        
+        groupMap.set(groupName, { ...group, name: groupName, columns });
       }
     });
 
     return Array.from(groupMap.values());
   }, [excelData?.groups]);
 
+  // LithCode seçenekleri
+  const lithCodes = [
+    'ALL',
+    'ABX',
+    'AND',
+    'CORELOST',
+    'FZ',
+    'FZ1',
+    'HBX',
+    'NC',
+    'MNBX',
+    'MS',
+    'PLBX',
+    'PQRF1',
+    'VOLSED',
+    'VBX',
+    'QBX',
+    'QV',
+    'QZSULP'
+  ];
+
   const renderFormField = (column: string) => {
     const columnType = excelService.getColumnType(column);
     const dropdownValues = excelService.getDropdownValues(column);
-    
-    console.log(`Rendering field for ${column}:`, {
-      columnType,
-      dropdownValues,
-      currentValue: formData[column]
-    });
+
+    // LithCode sütunları için özel dropdown
+    if (column === 'Lith1               Code' || column === 'Lith2               Code') {
+      const currentValue = formatValue(formData[column]);
+      
+      return (
+        <div className="relative">
+          <Select
+            defaultValue={currentValue || "ALL"}
+            value={currentValue || "ALL"}
+            onValueChange={(value) => handleInputChange(column, value)}
+            disabled={isSaving}
+          >
+            <SelectTrigger className="h-6 text-[10px]">
+              <SelectValue placeholder="LithCode seçiniz..." />
+            </SelectTrigger>
+            <SelectContent>
+              {lithCodes.map((code) => (
+                <SelectItem key={code} value={code} className="text-[10px]">
+                  {code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="absolute top-0 right-0 -mr-3 text-[8px] text-muted-foreground">
+            (L)
+          </div>
+        </div>
+      );
+    }
 
     if (columnType === 'select' && dropdownValues.length > 0) {
-      console.log(`Rendering SELECT for ${column} with ${dropdownValues.length} options`);
       const currentValue = formatValue(formData[column]);
       
       return (
@@ -219,131 +349,38 @@ export const ExcelForm: React.FC = () => {
             onValueChange={(value) => handleInputChange(column, value)}
             disabled={isSaving}
           >
-            <SelectTrigger className="h-12 text-lg w-full">
-              <SelectValue placeholder={`${column} seçiniz...`} />
+            <SelectTrigger className="h-6 text-[10px]">
+              <SelectValue placeholder="Seçiniz..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Seçiniz...</SelectItem>
+              <SelectItem value="default">Seçiniz...</SelectItem>
               {dropdownValues.map((value, index) => (
-                <SelectItem key={`${value}-${index}`} value={value}>
+                <SelectItem key={`${value}-${index}`} value={value} className="text-[10px]">
                   {value}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {columnType === 'select' && (
-            <div className="absolute top-0 right-0 -mr-6 text-xs text-muted-foreground">
-              (Liste)
-            </div>
-          )}
+          <div className="absolute top-0 right-0 -mr-3 text-[8px] text-muted-foreground">
+            (L)
+          </div>
         </div>
       );
     }
 
-    console.log(`Rendering INPUT for ${column}`);
     return (
       <Input
         id={column}
         value={formatValue(formData[column])}
         onChange={(e) => handleInputChange(column, e.target.value)}
         disabled={isSaving}
-        className="h-12 text-lg"
+        className="h-6 text-[10px]"
       />
     );
   };
 
-  const renderForm = () => {
-    if (!excelData?.groups.length) return null;
-
-    return (
-      <div className="mt-8 pb-20">
-        <Card className="relative">
-          <CardHeader className="sticky top-0 z-10 bg-card border-b">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-2xl font-bold">Satır {currentRowIndex + 1} / {excelData.rows.length}</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={handlePreviousRow}
-                    disabled={currentRowIndex === 0 || isSaving}
-                    className="h-12 w-12"
-                  >
-                    <ChevronLeft className="h-6 w-6" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={handleNextRow}
-                    disabled={currentRowIndex === excelData.rows.length - 1 || isSaving}
-                    className="h-12 w-12"
-                  >
-                    <ChevronRight className="h-6 w-6" />
-                  </Button>
-                </div>
-              </div>
-              <Button 
-                onClick={handleSave} 
-                size="lg"
-                disabled={isSaving}
-                className="h-12 px-6"
-              >
-                <Save className="w-6 h-6 mr-2" />
-                {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-6">
-              {mergedGroups.map((group, groupIndex) => (
-                <Card key={groupIndex} className="overflow-hidden">
-                  <button
-                    onClick={() => toggleGroup(group.name)}
-                    className={`w-full p-4 flex items-center justify-between text-left transition-colors
-                      ${expandedGroups[group.name] ? 'bg-primary/5' : 'hover:bg-primary/5'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-6 h-6 rounded-full" 
-                        style={{ backgroundColor: `#${group.color}` }}
-                      />
-                      <h3 className="text-xl font-semibold">{group.name}</h3>
-                      <span className="text-sm text-muted-foreground">
-                        ({group.columns.length} alan)
-                      </span>
-                    </div>
-                    {expandedGroups[group.name] ? (
-                      <ChevronUp className="h-6 w-6" />
-                    ) : (
-                      <ChevronDown className="h-6 w-6" />
-                    )}
-                  </button>
-                  {expandedGroups[group.name] && (
-                    <div className="p-4 border-t">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {group.columns.sort().map((column, columnIndex) => (
-                          <div key={columnIndex} className="space-y-3">
-                            <Label htmlFor={column} className="text-base">
-                              {column}
-                            </Label>
-                            {renderFormField(column)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
-
   return (
-    <div className="container mx-auto p-4">
+    <div className="h-screen">
       {!excelData ? (
         <Card className="p-6">
           <div className="space-y-4">
@@ -396,7 +433,83 @@ export const ExcelForm: React.FC = () => {
           </div>
         </Card>
       ) : (
-        renderForm()
+        <div className="h-screen flex flex-col">
+          <div className="flex-1 relative overflow-hidden">
+            <div className="sticky top-0 z-10 bg-background border-b py-1 px-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-bold">Satır {currentRowIndex + 1} / {excelData.rows.length}</span>
+                </div>
+                <Button 
+                  onClick={handleSave} 
+                  size="sm"
+                  disabled={isSaving}
+                  className="h-6 px-2 flex items-center gap-1 text-xs"
+                >
+                  <FiSave size={12} />
+                  {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-auto h-[calc(100vh-3rem)]">
+              <div className="space-y-0.5">
+                {mergedGroups.map((group, groupIndex) => (
+                  <div key={groupIndex} className="bg-card">
+                    <div className="bg-muted/50 px-2 py-1 border-b flex items-center gap-1">
+                      <div 
+                        className="w-2 h-2 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: `#${group.color}` }}
+                      />
+                      <h3 className="text-xs font-medium text-muted-foreground">
+                        {group.name}
+                        <span className="ml-1 text-[10px]">
+                          ({group.columns.length})
+                        </span>
+                      </h3>
+                    </div>
+                    <div className="p-0.5">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-0.5">
+                        {group.columns.sort().map((column, columnIndex) => (
+                          <div key={columnIndex} className="min-w-[120px]">
+                            <Label htmlFor={column} className="text-[10px] text-muted-foreground mb-0.5 block truncate" title={column}>
+                              {column}
+                            </Label>
+                            {renderFormField(column)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Sayfalama Butonları - Sağ Alt Sabit */}
+          <div className="fixed bottom-1 right-1 flex items-center gap-1 bg-background/80 backdrop-blur-sm p-1 rounded-md shadow-lg z-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousRow}
+              disabled={currentRowIndex === 0 || isSaving}
+              className="h-6 w-6 p-0"
+            >
+              <FiChevronLeft size={12} />
+            </Button>
+            <span className="text-xs font-medium px-1">
+              {currentRowIndex + 1} / {excelData.rows.length}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextRow}
+              disabled={currentRowIndex === excelData.rows.length - 1 || isSaving}
+              className="h-6 w-6 p-0"
+            >
+              <FiChevronRight size={12} />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
