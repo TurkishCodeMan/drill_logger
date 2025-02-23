@@ -2,7 +2,7 @@ import React, { useCallback, useState, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ExcelService } from '../services/excel.service';
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,7 +19,7 @@ export const ExcelForm: React.FC = () => {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [__, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     try {
@@ -169,12 +169,6 @@ export const ExcelForm: React.FC = () => {
     }
   };
 
-  const toggleGroup = (groupName: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName]
-    }));
-  };
 
   // Grupları birleştir
   const mergedGroups = useMemo(() => {
